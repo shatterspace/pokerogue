@@ -10,7 +10,6 @@ import { GameMode } from "./game-mode";
 import { BattleSpec } from "./enums/battle-spec";
 import { PlayerGender } from "./system/game-data";
 import { MoneyMultiplierModifier, PokemonHeldItemModifier } from "./modifier/modifier";
-import { MoneyAchv } from "./system/achv";
 
 export enum BattleType {
     WILD,
@@ -89,33 +88,28 @@ export default class Battle {
     }
 
     private initBattleSpec(): void {
-        let spec = BattleSpec.DEFAULT;
-        if (this.gameMode.isClassic) {
-            if (this.waveIndex === 200)
-                spec = BattleSpec.FINAL_BOSS;
-        }
-        this.battleSpec = spec;
+        this.battleSpec = this.gameMode.isClassic && this.waveIndex === 200 
+            ? BattleSpec.FINAL_BOSS 
+            : BattleSpec.DEFAULT;
     }
 
     private getLevelForWave(): integer {
-        let levelWaveIndex = this.gameMode.getWaveForDifficulty(this.waveIndex);
-        let baseLevel = 1 + levelWaveIndex / 2 + Math.pow(levelWaveIndex / 25, 2);
+        const levelWaveIndex = this.gameMode.getWaveForDifficulty(this.waveIndex);
+        const baseLevel = 1 + levelWaveIndex / 2 + Math.pow(levelWaveIndex / 25, 2);
         const bossMultiplier = 1.2;
 
         if (!(this.waveIndex % 10)) {
-            const ret = Math.floor(baseLevel * bossMultiplier);
+            const levelForWave = Math.floor(baseLevel * bossMultiplier);
             if (this.battleSpec === BattleSpec.FINAL_BOSS || !(this.waveIndex % 250))
-                return Math.ceil(ret / 25) * 25;
-            let levelOffset = 0;
-            if (!this.gameMode.isWaveFinal(this.waveIndex))
-                levelOffset = Math.round(Phaser.Math.RND.realInRange(-1, 1) * Math.floor(levelWaveIndex / 10));
-            return ret + levelOffset;
+                return Math.ceil(levelForWave / 25) * 25;
+            const levelOffset = !this.gameMode.isWaveFinal(this.waveIndex) 
+                ? Math.round(Phaser.Math.RND.realInRange(-1, 1) * Math.floor(levelWaveIndex / 10))
+                : 0;
+            return levelForWave + levelOffset;
         }
 
-        let levelOffset = 0;
-        
         const deviation = 10 / levelWaveIndex;
-        levelOffset = Math.abs(this.randSeedGaussForLevel(deviation));
+        const levelOffset = Math.abs(this.randSeedGaussForLevel(deviation));
 
         return Math.max(Math.round(baseLevel + levelOffset), 1);
     }
@@ -131,7 +125,7 @@ export default class Battle {
         return this.double ? 2 : 1;
     }
 
-    incrementTurn(scene: BattleScene): void {
+    incrementTurn(_scene: BattleScene): void {
         this.turn++;
         this.turnCommands = Object.fromEntries(Utils.getEnumValues(BattlerIndex).map(bt => [ bt, null ]));
         this.battleSeedState = null;
@@ -218,7 +212,6 @@ export default class Battle {
     randSeedInt(scene: BattleScene, range: integer, min: integer = 0): integer {
         if (range <= 1)
             return min;
-        let ret: integer;
         const tempRngCounter = scene.rngCounter;
         const tempSeedOverride = scene.rngSeedOverride;
         const state = Phaser.Math.RND.state();
@@ -230,12 +223,11 @@ export default class Battle {
         }
         scene.rngCounter = this.rngCounter++;
         scene.rngSeedOverride = this.battleSeed;
-        ret = Utils.randSeedInt(range, min);
         this.battleSeedState = Phaser.Math.RND.state();
         Phaser.Math.RND.state(state);
         scene.rngCounter = tempRngCounter;
         scene.rngSeedOverride = tempSeedOverride;
-        return ret;
+        return Utils.randSeedInt(range, min);
     }
 }
 
