@@ -68,6 +68,17 @@ export class BattlerTag {
       ? allMoves[this.sourceMove].name
       : null;
   }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * This is meant to be inherited from by any battler tag with custom attributes
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    this.turnCount = source.turnCount;
+    this.sourceMove = source.sourceMove;
+    this.sourceId = source.sourceId;
+  }
 }
 
 export interface WeatherBattlerTag {
@@ -306,6 +317,15 @@ export class SeedTag extends BattlerTag {
     super(BattlerTagType.SEEDED, BattlerTagLapseType.TURN_END, 1, Moves.LEECH_SEED, sourceId);
   }
 
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.sourceIndex = source.sourceIndex;
+  }
+
   canAdd(pokemon: Pokemon): boolean {
     return !pokemon.isOfType(Type.GRASS);
   }
@@ -409,6 +429,15 @@ export class EncoreTag extends BattlerTag {
 
   constructor(sourceId: integer) {
     super(BattlerTagType.ENCORE, BattlerTagLapseType.AFTER_MOVE, 3, Moves.ENCORE, sourceId);
+  }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.moveId = source.moveId as Moves;
   }
 
   canAdd(pokemon: Pokemon): boolean {
@@ -558,6 +587,15 @@ export abstract class DamagingTrapTag extends TrappedTag {
     super(tagType, BattlerTagLapseType.TURN_END, turnCount, sourceMove, sourceId);
 
     this.commonAnim = commonAnim;
+  }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.commonAnim = source.commonAnim as CommonAnim;
   }
 
   canAdd(pokemon: Pokemon): boolean {
@@ -716,6 +754,15 @@ export class ContactDamageProtectedTag extends ProtectedTag {
     this.damageRatio = damageRatio;
   }
 
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.damageRatio = source.damageRatio;
+  }
+
   lapse(pokemon: Pokemon, lapseType: BattlerTagLapseType): boolean {
     const ret = super.lapse(pokemon, lapseType);
 
@@ -740,6 +787,16 @@ export class ContactStatChangeProtectedTag extends ProtectedTag {
 
     this.stat = stat;
     this.levels = levels;
+  }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.stat = source.stat as BattleStat;
+    this.levels = source.levels;
   }
 
   lapse(pokemon: Pokemon, lapseType: BattlerTagLapseType): boolean {
@@ -862,6 +919,15 @@ export class AbilityBattlerTag extends BattlerTag {
 
     this.ability = ability;
   }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.ability = source.ability as Abilities;
+  }
 }
 
 export class TruantTag extends AbilityBattlerTag {
@@ -919,6 +985,16 @@ export class HighestStatBoostTag extends AbilityBattlerTag {
     super(tagType, ability, BattlerTagLapseType.CUSTOM, 1);
   }
 
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.stat = source.stat as Stat;
+    this.multiplier = source.multiplier;
+  }
+
   onAdd(pokemon: Pokemon): void {
     super.onAdd(pokemon);
 
@@ -960,6 +1036,15 @@ export class WeatherHighestStatBoostTag extends HighestStatBoostTag implements W
     super(tagType, ability);
     this.weatherTypes = weatherTypes;
   }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.weatherTypes = source.weatherTypes.map(w => w as WeatherType);
+  }
 }
 
 export class TerrainHighestStatBoostTag extends HighestStatBoostTag implements TerrainBattlerTag {
@@ -968,6 +1053,15 @@ export class TerrainHighestStatBoostTag extends HighestStatBoostTag implements T
   constructor(tagType: BattlerTagType, ability: Abilities, ...terrainTypes: TerrainType[]) {
     super(tagType, ability);
     this.terrainTypes = terrainTypes;
+  }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.terrainTypes = source.terrainTypes.map(w => w as TerrainType);
   }
 }
 
@@ -996,6 +1090,15 @@ export class TypeImmuneTag extends BattlerTag {
   constructor(tagType: BattlerTagType, sourceMove: Moves, immuneType: Type, length: number) {
     super(tagType, BattlerTagLapseType.TURN_END, 1, sourceMove);
   }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.immuneType = source.immuneType as Type;
+  }
 }
 
 export class MagnetRisenTag extends TypeImmuneTag {
@@ -1015,6 +1118,17 @@ export class TypeBoostTag extends BattlerTag {
     this.boostedType = boostedType;
     this.boostValue = boostValue;
     this.oneUse = oneUse;
+  }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.boostedType = source.boostedType as Type;
+    this.boostValue = source.boostValue;
+    this.oneUse = source.oneUse;
   }
 
   lapse(pokemon: Pokemon, lapseType: BattlerTagLapseType): boolean {
@@ -1063,6 +1177,15 @@ export class SaltCuredTag extends BattlerTag {
     super(BattlerTagType.SALT_CURED, BattlerTagLapseType.TURN_END, 1, Moves.SALT_CURE, sourceId);
   }
 
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.sourceIndex = source.sourceIndex;
+  }
+
   onAdd(pokemon: Pokemon): void {
     super.onAdd(pokemon);
     
@@ -1096,6 +1219,15 @@ export class CursedTag extends BattlerTag {
 
   constructor(sourceId: integer) {
     super(BattlerTagType.CURSED, BattlerTagLapseType.TURN_END, 1, Moves.CURSE, sourceId);
+  }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.sourceIndex = source.sourceIndex;
   }
 
   onAdd(pokemon: Pokemon): void {
@@ -1238,4 +1370,15 @@ export function getBattlerTag(tagType: BattlerTagType, turnCount: integer, sourc
         return new BattlerTag(tagType, BattlerTagLapseType.CUSTOM, turnCount, sourceMove, sourceId);
   }
 }
- 
+
+/**
+* When given a battler tag or json representing one, creates an actual BattlerTag object with the same data.
+* @param {BattlerTag | any} source A battler tag
+* @return {BattlerTag} The valid battler tag
+*/
+export function loadBattlerTag(source: BattlerTag | any): BattlerTag {
+  const tag = getBattlerTag(source.tagType, source.turnCount, source.sourceMove, source.sourceId);
+  tag.loadTag(source);
+  return tag;
+}
+
