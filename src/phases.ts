@@ -2433,6 +2433,9 @@ export class MoveEffectPhase extends PokemonPhase {
         if (this.move.getMove() instanceof AttackMove && !this.move.getMove().getAttrs(FixedDamageAttr).length)
           this.scene.applyModifiers(PokemonMultiHitModifier, user.isPlayer(), user, hitCount, new Utils.IntegerHolder(0));
         user.turnData.hitsLeft = user.turnData.hitCount = hitCount.value;
+
+        // Store if the target was full HP at the start of the hits
+        targets.map((t) => { t.turnData.startedFullHp = t.getHpRatio() === 1});
       }
 
       const moveHistoryEntry = { move: this.move.moveId, targets: this.targets, result: MoveResult.PENDING, virtual: this.move.virtual };
@@ -2537,6 +2540,9 @@ export class MoveEffectPhase extends PokemonPhase {
         if (hitsTotal > 1)
           this.scene.queueMessage(i18next.t('battle:attackHitsCount', { count: hitsTotal }));
         this.scene.applyModifiers(HitHealModifier, this.player, user);
+
+        // Update full HP check only after all hits
+        this.getTargets().map((t) => { t.turnData.startedFullHp = t.getHpRatio() === 1});
       }
     }
     

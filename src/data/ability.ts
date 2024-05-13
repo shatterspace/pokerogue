@@ -2585,6 +2585,26 @@ export class IgnoreTypeImmunityAbAttr extends AbAttr {
   }
 }
 
+export class FullHpTypeMultiplierAbAttr extends AbAttr {
+  public multiplier: number;
+
+  constructor(multiplier: number) {
+    super(true);
+
+    this.multiplier = multiplier;
+  }
+
+  apply(pokemon: Pokemon, passive: boolean, cancelled: Utils.BooleanHolder, args: any[]): boolean {
+    const typeMultiplier = args[0] as Utils.NumberHolder;
+    if (typeMultiplier.value > 0){
+      typeMultiplier.value = this.multiplier;
+      return true;
+    }
+
+    return false;
+  }
+}
+
 function applyAbAttrsInternal<TAttr extends AbAttr>(attrType: { new(...args: any[]): TAttr },
   pokemon: Pokemon, applyFunc: AbAttrApplyFunc<TAttr>, args: any[], isAsync: boolean = false, showAbilityInstant: boolean = false, quiet: boolean = false, passive: boolean = false): Promise<void> {
   return new Promise(resolve => {
@@ -3731,10 +3751,10 @@ export function initAbilities() {
       .attr(NoTransformAbilityAbAttr)
       .attr(NoFusionAbilityAbAttr),
     new Ability(Abilities.TERA_SHELL, 9)
+      .attr(FullHpTypeMultiplierAbAttr, 0.5)
       .attr(UncopiableAbilityAbAttr)
       .attr(UnswappableAbilityAbAttr)
-      .ignorable()
-      .unimplemented(),
+      .ignorable(),
     new Ability(Abilities.TERAFORM_ZERO, 9)
       .attr(UncopiableAbilityAbAttr)
       .attr(UnswappableAbilityAbAttr)
