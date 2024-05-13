@@ -12,7 +12,7 @@ import { AbilityAttr, DexAttr, DexAttrProps, DexEntry, Passive as PassiveAttr, S
 import * as Utils from "../utils";
 import PokemonIconAnimHandler, { PokemonIconAnimMode } from "./pokemon-icon-anim-handler";
 import { StatsContainer } from "./stats-container";
-import { addWindow } from "./ui-theme";
+import { WindowVariant, addWindow } from "./ui-theme";
 import { Nature, getNatureName } from "../data/nature";
 import BBCodeText from "phaser3-rex-plugins/plugins/bbcodetext";
 import { pokemonFormChanges } from "../data/pokemon-forms";
@@ -86,15 +86,46 @@ function getValueReductionCandyCounts(baseValue: integer): [integer, integer] {
   }
 }
 
+const tabX = [174, 259];
+
+const tabs = {
+  POKEMON: 0,
+  FILTER: 1
+}
+
+const filterableTypes = {
+  NORMAL: 0,
+  FIRE: 1,
+  WATER: 2,
+  ELECTRIC: 3,
+  GRASS: 4,
+  ICE: 5,
+  FIGHTING: 6,
+  POISON: 7,
+  GROUND: 8,
+  FLYING: 9,
+  PSYCHIC: 10,
+  BUG: 11,
+  ROCK: 12,
+  GHOST: 13,
+  DRAGON: 14,
+  DARK: 15,
+  STEEL: 16,
+  FAIRY: 17
+}
+
 const gens = [ 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX' ];
 
 export default class StarterSelectUiHandler extends MessageUiHandler {
   private starterSelectContainer: Phaser.GameObjects.Container;
   private shinyOverlay: Phaser.GameObjects.Image;
   private starterSelectGenIconContainers: Phaser.GameObjects.Container[];
+  private filterSelectContainer: Phaser.GameObjects.Container;
   private pokemonNumberText: Phaser.GameObjects.Text;
   private pokemonSprite: Phaser.GameObjects.Sprite;
   private pokemonNameText: Phaser.GameObjects.Text;
+  private filterTabText: Phaser.GameObjects.Text;
+  private pokemonTabText: Phaser.GameObjects.Text;
   private pokemonGrowthRateLabelText: Phaser.GameObjects.Text;
   private pokemonGrowthRateText: Phaser.GameObjects.Text;
   private type1Icon: Phaser.GameObjects.Sprite;
@@ -133,11 +164,13 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
   private pokemonFormText: Phaser.GameObjects.Text;
 
   private genMode: boolean;
+  private tabMode: boolean;
   private statsMode: boolean;
   private dexAttrCursor: bigint = 0n;
   private abilityCursor: integer = -1;
   private natureCursor: integer = -1;
   private genCursor: integer = 0;
+  private tabCursor: integer = 0;
   private genScrollCursor: integer = 0;
   private starterMoveset: StarterMoveset;
 
@@ -168,6 +201,8 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
   private pokerusCursorObjs: Phaser.GameObjects.Image[];
   private starterIcons: Phaser.GameObjects.Sprite[];
   private genCursorObj: Phaser.GameObjects.Image;
+  private tabCursorObj: Phaser.GameObjects.Image;
+  private tabWindowObjs: Phaser.GameObjects.NineSlice[] = [];
   private genCursorHighlightObj: Phaser.GameObjects.Image;
   private valueLimitLabel: Phaser.GameObjects.Text;
   private startCursorObj: Phaser.GameObjects.NineSlice;
@@ -177,6 +212,27 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
   private classicWinIcons: Phaser.GameObjects.Image[];
 
   private iconAnimHandler: PokemonIconAnimHandler;
+
+  private filterObj = {
+    NORMAL: false,
+    FIRE: false,
+    WATER: false,
+    ELECTRIC: false,
+    GRASS: false,
+    ICE: false,
+    FIGHTING: false,
+    POISON: false,
+    GROUND: false,
+    FLYING: false,
+    PSYCHIC: false,
+    BUG: false,
+    ROCK: false,
+    GHOST: false,
+    DRAGON: false,
+    DARK: false,
+    STEEL: false,
+    FAIRY: false
+  };
 
   private starterSelectCallback: StarterSelectCallback;
   private gameMode: GameModes;
@@ -212,6 +268,16 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
     this.starterSelectContainer.add(addWindow(this.scene, 107, 1, 34, 58));
     this.starterSelectContainer.add(addWindow(this.scene, 107, 59, 34, 91));
     this.starterSelectContainer.add(addWindow(this.scene, 107, 145, 34, 34, true));
+
+    const pokemonTabWindow = addWindow(this.scene, 143, 1, 87, 15, false, false, 0, 0, WindowVariant.THIN);
+    this.tabWindowObjs.push(pokemonTabWindow);
+
+    const filterTabWindow = addWindow(this.scene, 230, 1, 87, 15, false, false, 0, 0, WindowVariant.THIN);
+    filterTabWindow.alpha = 0.5;
+    this.tabWindowObjs.push(filterTabWindow);
+
+    this.starterSelectContainer.add(pokemonTabWindow);
+    this.starterSelectContainer.add(filterTabWindow);
     this.starterSelectContainer.add(starterContainerWindow);
 
     if (!this.scene.uiTheme)
@@ -227,6 +293,14 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
     this.pokemonNameText = addTextObject(this.scene, 6, 112, '', TextStyle.SUMMARY);
     this.pokemonNameText.setOrigin(0, 0);
     this.starterSelectContainer.add(this.pokemonNameText);
+  
+    this.pokemonTabText = addTextObject(this.scene, 178, 5, 'Pokemon', TextStyle.SUMMARY, { fontSize: '42px' });
+    this.pokemonTabText.setOrigin(0, 0);  
+    this.starterSelectContainer.add(this.pokemonTabText);
+
+    this.filterTabText = addTextObject(this.scene, 267, 5, 'Filter', TextStyle.SUMMARY, { fontSize: '42px' });
+    this.filterTabText.setOrigin(0, 0);  
+    this.starterSelectContainer.add(this.filterTabText);
 
     this.pokemonGrowthRateLabelText = addTextObject(this.scene, 8, 106, i18next.t("starterSelectUiHandler:growthRate"), TextStyle.SUMMARY_ALT, { fontSize: '36px' });
     this.pokemonGrowthRateLabelText.setOrigin(0, 0);
@@ -295,6 +369,9 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
       return container;
     });
 
+    this.filterSelectContainer = this.scene.add.container(151, 9);
+    this.starterSelectContainer.add(this.filterSelectContainer);
+
     this.pokerusCursorObjs = new Array(3).fill(null).map(() => {
       const cursorObj = this.scene.add.image(0, 0, 'select_cursor_pokerus');
       cursorObj.setVisible(false);
@@ -324,6 +401,11 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
     this.genCursorObj.setOrigin(0, 0);
     this.starterSelectContainer.add(this.genCursorObj);
 
+    this.tabCursorObj = this.scene.add.image(172, 1, 'select_gen_cursor');
+    this.tabCursorObj.setVisible(false);
+    this.tabCursorObj.setOrigin(0, 0);
+    this.starterSelectContainer.add(this.tabCursorObj);
+
     this.valueLimitLabel = addTextObject(this.scene, 124, 150, '0/10', TextStyle.TOOLTIP_CONTENT);
     this.valueLimitLabel.setOrigin(0.5, 0);
     this.starterSelectContainer.add(this.valueLimitLabel);
@@ -352,7 +434,7 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
         const defaultDexAttr = this.scene.gameData.getSpeciesDefaultDexAttr(species, false, true);
         const defaultProps = this.scene.gameData.getSpeciesDexAttrProps(species, defaultDexAttr);
         const x = (s % 9) * 18;
-        const y = Math.floor(s / 9) * 18;
+        const y = 10 + Math.floor(s / 9) * 17;
         const icon = this.scene.add.sprite(x - 2, y + 2, species.getIconAtlasKey(defaultProps.formIndex, defaultProps.shiny, defaultProps.variant));
         icon.setScale(0.5);
         icon.setOrigin(0, 0);
@@ -363,6 +445,20 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
         this.iconAnimHandler.addOrUpdate(icon, PokemonIconAnimMode.NONE);
         s++;
       }
+    }
+
+    let s = 0;
+    for (let type of Object.keys(filterableTypes)) {
+      const x = (s % 9) * 18;
+      const y = 17 + Math.floor(s / 9) * 17;
+      const icon = this.scene.add.sprite(x, y, 'types');
+      icon.setFrame(type.toLowerCase());
+      icon.setScale(0.5);
+      icon.setOrigin(0, 0);
+      icon.setAlpha(0.40);
+      icon.setVisible(false);
+      this.filterSelectContainer.add(icon);
+      s++;
     }
 
     this.starterIcons = new Array(6).fill(null).map((_, i) => {
@@ -377,7 +473,7 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
 
     this.starterValueLabels = new Array(81).fill(null).map((_, i) => {
       const x = (i % 9) * 18;
-      const y = Math.floor(i / 9) * 18;
+      const y = 10 + Math.floor(i / 9) * 17;
       const ret = addTextObject(this.scene, x + 152, y + 11, '0', TextStyle.WINDOW, { fontSize: '32px' });
       ret.setShadowOffset(2, 2);
       ret.setOrigin(0, 0);
@@ -388,7 +484,7 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
 
     const getShinyStar = (i: integer, v: integer): Phaser.GameObjects.Image => {
       const x = (i % 9) * 18 - v * 3;
-      const y = Math.floor(i / 9) * 18;
+      const y = 10 + Math.floor(i / 9) * 17;
       const ret = this.scene.add.image(x + 163, y + 11, 'shiny_star_small');
       ret.setOrigin(0, 0);
       ret.setScale(0.5);
@@ -403,7 +499,7 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
 
     this.hiddenAbilityIcons = new Array(81).fill(null).map((_, i) => {
       const x = (i % 9) * 18;
-      const y = Math.floor(i / 9) * 18;
+      const y = 10 + Math.floor(i / 9) * 17;
       const ret = this.scene.add.image(x + 163, y + 16, 'ha_capsule');
       ret.setOrigin(0, 0);
       ret.setScale(0.5);
@@ -627,7 +723,7 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
 
         this.pokerusGens.push(species.generation - 1);
         this.pokerusCursors.push(pokerusCursor);
-        this.pokerusCursorObjs[c].setPosition(150 + 18 * (pokerusCursor % 9), 10 + 18 * Math.floor(pokerusCursor / 9));
+        this.pokerusCursorObjs[c].setPosition(150 + 18 * (pokerusCursor % 9), 20 + 17 * Math.floor(pokerusCursor / 9));
       }
     }, 0, date.getTime().toString());
 
@@ -766,6 +862,49 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
           break;
         case Button.RIGHT:
           success = this.setGenMode(false);
+          break;
+      }
+    } else if(this.tabMode) {
+      switch (button) {
+        case Button.DOWN:
+          this.setTabMode(false);
+          break;
+        case Button.RIGHT:
+          this.setTabCursor(this.tabCursor + 1);
+          this.switchTab();
+          break;
+        case Button.LEFT:
+          this.setTabCursor(this.tabCursor - 1);
+          this.switchTab();
+          break;
+      }
+    } else if (this.tabCursor === tabs.FILTER) {
+      // Only type filtering as of now
+      const numberOfFilterOptions = Object.keys(filterableTypes).length;
+      const rows = Math.ceil(numberOfFilterOptions / 9);
+      const row = Math.floor(this.cursor / 9);
+
+      switch (button) {
+        case Button.UP:
+          if(this.cursor < 9) 
+            this.setTabMode(true);
+          if (row)
+            success = this.setCursor(this.cursor - 9);
+          break;
+        case Button.DOWN:
+          if (row < rows - 2 || (row < rows - 1 && this.cursor % 9 <= (numberOfFilterOptions - 1) % 9))
+            success = this.setCursor(this.cursor + 9);
+          break;
+        case Button.LEFT:
+          if (this.cursor % 9)
+            success = this.setCursor(this.cursor - 1);
+          break;
+        case Button.RIGHT:
+          if (this.cursor % 9 < (row < rows - 1 ? 8 : (numberOfFilterOptions - 1) % 9))
+           success = this.setCursor(this.cursor + 1);
+          break;
+        case Button.ACTION:
+          this.setFilter(this.cursor);
           break;
       }
     } else {
@@ -1079,6 +1218,8 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
             }
             break;
           case Button.UP:
+            if(this.cursor < 9) 
+              this.setTabMode(true);
             if (row)
               success = this.setCursor(this.cursor - 9);
             break;
@@ -1187,6 +1328,34 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
     }
   }
 
+  setFilter(cursor: integer): boolean {
+    const offAlpha = 0.5;
+    const onAlpha = 1;
+    const type = Object.keys(filterableTypes)[cursor];
+    this.filterObj[type] = !this.filterObj[type];
+    this.filterSelectContainer.list[cursor].setAlpha(this.filterObj[type] ? onAlpha : offAlpha);
+
+    // If all filters are off then show all specifies
+    const noFilters = Object.values(this.filterObj).every((filter) => filter === false);
+
+    // Filter actual starterGrid
+    for(let g = 0; g < gens.length; g++) {
+      this.genSpecies[g].forEach((species, s) => {
+        const type1 = Type[species.type1];
+        const type2 = Type[species.type2];
+        // If all filters are off then show all specifies
+        const alpha = noFilters ? 1 
+        : this.filterObj[type1] || this.filterObj[type2]
+          ? 1 
+          : 0.5;
+
+        this.starterSelectGenIconContainers[g].list[s].setAlpha(alpha);
+      })
+    }
+
+    return true
+  }
+
   setCursor(cursor: integer): boolean {
     let changed = false;
 
@@ -1238,15 +1407,19 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
         this.hiddenAbilityIcons[s].setVisible(slotVisible && !!this.scene.gameData.dexData[speciesId].caughtAttr && !!(this.scene.gameData.starterData[speciesId].abilityAttr & 4));
         this.classicWinIcons[s].setVisible(slotVisible && this.scene.gameData.starterData[speciesId].classicWinCount > 0);
       }
-    } else {
+    } else if(this.tabMode) {
+    } else if (this.tabCursor === tabs.POKEMON) {
       changed = super.setCursor(cursor);
 
-      this.cursorObj.setPosition(150 + 18 * (cursor % 9), 10 + 18 * Math.floor(cursor / 9));
+      this.cursorObj.setPosition(150 + 18 * (cursor % 9), 20 + 17 * Math.floor(cursor / 9));
 
       this.setSpecies(this.genSpecies[this.getGenCursorWithScroll()][cursor]);
 
       this.updateInstructions();
-    }
+    } else if(this.tabCursor === tabs.FILTER) {
+      changed = super.setCursor(cursor);
+      this.cursorObj.setPosition(150 + 18 * (cursor % 9), 20 + 17 * Math.floor(cursor / 9));
+    } 
 
     return changed;
   }
@@ -1285,6 +1458,60 @@ export default class StarterSelectUiHandler extends MessageUiHandler {
     }
 
     return false;
+  }
+
+  switchTab() {
+    const pokemonVisibility = this.tabCursor === tabs.POKEMON;
+    const filterVisibility = this.tabCursor === tabs.FILTER;
+
+    this.starterSelectGenIconContainers[this.getGenCursorWithScroll()].list.forEach((pokeIcon, i) => {
+      pokeIcon.setVisible(pokemonVisibility);
+      this.starterValueLabels[i].setVisible(pokemonVisibility); 
+      
+      for (let s = 0; s < this.pokerusCursorObjs.length; s++) 
+        this.pokerusCursorObjs[s].setVisible(pokemonVisibility ? 
+          this.pokerusGens[s] === this.getGenCursorWithScroll() : 
+          false
+        );
+    })
+
+    this.filterSelectContainer.list.forEach((filterIcon) => {
+      filterIcon.setVisible(filterVisibility);
+    })
+  }
+
+  setTabMode(tabMode: boolean): boolean {
+    this.tabCursorObj.setVisible(tabMode && !this.startCursorObj.visible);
+    this.cursorObj.setVisible(!tabMode && !this.startCursorObj.visible);
+
+    if (tabMode !== this.tabMode) {
+      this.tabMode = tabMode;
+      
+      this.setCursor(tabMode ? this.tabCursor : this.cursor);
+      if (tabMode) {
+        this.setSpecies(null);
+        this.setTabCursor(Math.floor(this.cursor / 5));
+        this.switchTab();
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  setTabCursor(tabNumber: integer): boolean {
+    if(0 > tabNumber || tabNumber >= tabX.length) 
+      return false
+
+      const offTint = 0xD3D3D3;
+      const onTint = 0x000000;
+
+    this.tabCursor = tabNumber;
+    this.tabCursorObj.setX(tabX[tabNumber]);
+    this.tabWindowObjs.forEach((tabWindowObj) => tabWindowObj.setTint(offTint));
+    this.tabWindowObjs[tabNumber].setTint(onTint);
+
+    return true;
   }
 
   setSpecies(species: PokemonSpecies) {
