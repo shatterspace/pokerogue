@@ -775,11 +775,11 @@ export class EncounterPhase extends BattlePhase {
 
       this.scene.ui.setMode(Mode.MESSAGE).then(() => {
         if (!this.loaded) {
-          this.scene.gameData.saveSystem().then(success => {
+          this.scene.gameData.saveAll(this.scene, true).then(success => {
             this.scene.disableMenu = false;
             if (!success)
               return this.scene.reset(true);
-            this.scene.gameData.saveSession(this.scene, true).then(() => this.doEncounter());
+            this.doEncounter();
           });
         } else
           this.doEncounter();
@@ -2211,22 +2211,22 @@ export class MovePhase extends BattlePhase {
     }
 
     // Move redirection abilities (ie. Storm Drain) only support single target moves
-const moveTarget = this.targets.length === 1
-        ? new Utils.IntegerHolder(this.targets[0])
-         : null;
- if (moveTarget) {
-        var oldTarget = moveTarget.value;
-        this.scene.getField(true).filter(p => p !== this.pokemon).forEach(p => applyAbAttrs(RedirectMoveAbAttr, p, null, this.move.moveId, moveTarget));
-	//Check if this move is immune to being redirected, and restore its target to the intended target if it is.
-        if ((this.pokemon.hasAbilityWithAttr(BlockRedirectAbAttr) || this.move.getMove().getAttrs(BypassRedirectAttr).length)) {
-         //If an ability prevented this move from being redirected, display its ability pop up.
-         if ((this.pokemon.hasAbilityWithAttr(BlockRedirectAbAttr) && !this.move.getMove().getAttrs(BypassRedirectAttr).length) && oldTarget != moveTarget.value) {
-                this.scene.unshiftPhase(new ShowAbilityPhase(this.scene, this.pokemon.getBattlerIndex(), this.pokemon.getPassiveAbility().hasAttr(BlockRedirectAbAttr)));
-         }
+    const moveTarget = this.targets.length === 1
+      ? new Utils.IntegerHolder(this.targets[0])
+      : null;
+    if (moveTarget) {
+      var oldTarget = moveTarget.value;
+      this.scene.getField(true).filter(p => p !== this.pokemon).forEach(p => applyAbAttrs(RedirectMoveAbAttr, p, null, this.move.moveId, moveTarget));
+      //Check if this move is immune to being redirected, and restore its target to the intended target if it is.
+      if ((this.pokemon.hasAbilityWithAttr(BlockRedirectAbAttr) || this.move.getMove().getAttrs(BypassRedirectAttr).length)) {
+        //If an ability prevented this move from being redirected, display its ability pop up.
+        if ((this.pokemon.hasAbilityWithAttr(BlockRedirectAbAttr) && !this.move.getMove().getAttrs(BypassRedirectAttr).length) && oldTarget != moveTarget.value) {
+          this.scene.unshiftPhase(new ShowAbilityPhase(this.scene, this.pokemon.getBattlerIndex(), this.pokemon.getPassiveAbility().hasAttr(BlockRedirectAbAttr)));
+        }
         moveTarget.value = oldTarget;
-	}
- this.targets[0] = moveTarget.value;
-}
+	    }
+      this.targets[0] = moveTarget.value;
+    }
 
     if (this.targets.length === 1 && this.targets[0] === BattlerIndex.ATTACKER) {
       if (this.pokemon.turnData.attacksReceived.length) {
@@ -2269,15 +2269,19 @@ const moveTarget = this.targets.length === 1
       if (!this.followUp && this.canMove() && !this.cancelled) {
         this.pokemon.lapseTags(BattlerTagLapseType.MOVE);
       }
+
+      const moveQueue = this.pokemon.getMoveQueue();
       if (this.cancelled || this.failed) {
         if (this.failed)
           this.move.usePp(ppUsed); // Only use PP if the move failed
 
+        // Record a failed move so Abilities like Truant don't trigger next turn and soft-lock
         this.pokemon.pushMoveHistory({ move: Moves.NONE, result: MoveResult.FAIL });
+
+        this.pokemon.lapseTags(BattlerTagLapseType.MOVE_EFFECT); // Remove any tags from moves like Fly/Dive/etc.
+        moveQueue.shift(); // Remove the second turn of charge moves
         return this.end();
       }
-
-      const moveQueue = this.pokemon.getMoveQueue();
 
       this.scene.triggerPokemonFormChange(this.pokemon, SpeciesFormChangePreMoveTrigger);
 
@@ -2927,19 +2931,21 @@ export class ObtainStatusEffectPhase extends PokemonPhase {
   private statusEffect: StatusEffect;
   private cureTurn: integer;
   private sourceText: string;
+  private sourcePokemon: Pokemon;
 
-  constructor(scene: BattleScene, battlerIndex: BattlerIndex, statusEffect: StatusEffect, cureTurn?: integer, sourceText?: string) {
+  constructor(scene: BattleScene, battlerIndex: BattlerIndex, statusEffect: StatusEffect, cureTurn?: integer, sourceText?: string, sourcePokemon?: Pokemon) {
     super(scene, battlerIndex);
 
     this.statusEffect = statusEffect;
     this.cureTurn = cureTurn;
     this.sourceText = sourceText;
+    this.sourcePokemon = sourcePokemon; // For tracking which Pokemon caused the status effect
   }
 
   start() {
     const pokemon = this.getPokemon();
     if (!pokemon.status) {
-      if (pokemon.trySetStatus(this.statusEffect)) {
+      if (pokemon.trySetStatus(this.statusEffect, false, this.sourcePokemon)) {
         if (this.cureTurn)
           pokemon.status.cureTurn = this.cureTurn;
         pokemon.updateInfo(true);
