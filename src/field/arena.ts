@@ -497,7 +497,7 @@ export class Arena {
       return false;
     }
 
-    const newTag = getArenaTag(tagType, turnCount || 0, sourceMove, sourceId, targetIndex, side);
+    const newTag = getArenaTag(tagType, turnCount || 0, sourceMove, sourceId, side, targetIndex);
     this.tags.push(newTag);
     newTag.onAdd(this);
 
