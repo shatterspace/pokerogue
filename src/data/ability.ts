@@ -321,6 +321,7 @@ export class PreDefendDisguiseNullifyDamageAbAttr extends PreDefendAbAttr {
  * @returns {boolean} true if the function succeeds
  */
   applyPreDefend(pokemon: Pokemon, passive: boolean, attacker: Pokemon, move: PokemonMove, cancelled: Utils.BooleanHolder, args: any[]): boolean {
+    //If disguise has not been triggered during this battle, and the move will hit the user (User is not inmune and or foe's move failed).
     if (pokemon.battleData && !pokemon.battleData.abilitiesApplied.includes(Abilities.DISGUISE) && (args[1] as Utils.NumberHolder).value != HitResult.NO_EFFECT && (args[1] as Utils.NumberHolder).value != HitResult.FAIL) {
       //Damage dealt is set to 1 as 0 can cause some issues. This 1 damage is subtracted later.
       console.log(pokemon.battleData);
@@ -3427,10 +3428,13 @@ export function initAbilities() {
       .attr(DisguiseConfusionInteractionAbAttr)
       .attr(PreDefendDisguiseNullifyDamageAbAttr)
       .attr(PostDefendDisguiseRecoilAbAttr)
-      .attr(PreDefendFormChangeAbAttr, p => p.battleData && !p.battleData.abilitiesApplied.includes(Abilities.DISGUISE) ? 0 : 1)
+      //Disguise has the disguised and busted states. Acording to the state, one can change into the other in certain moments of battle:
+      //Before being hit (both ways), after switch in (busted to disguised), after battle starts (busted to disguised), after being hit (disguised to busted).
+      .attr(PreDefendFormChangeAbAttr, p => p.battleData && !p.battleData.abilitiesApplied.includes(Abilities.DISGUISE) ? 0 : 1) 
       .attr(PostSummonFormChangeAbAttr, p => p.battleData && !p.battleData.abilitiesApplied.includes(Abilities.DISGUISE) ? 0 : 1)
       .attr(PostBattleInitFormChangeAbAttr, p => p.battleData && !p.battleData.abilitiesApplied.includes(Abilities.DISGUISE) ? 0 : 1)
       .attr(PostDefendFormChangeAbAttr, p => p.battleData && !p.battleData.abilitiesApplied.includes(Abilities.DISGUISE) ? 0 : 1)
+      //Being a signature ability with form change that triggers once per battle:
       .attr(UncopiableAbilityAbAttr)
       .attr(UnswappableAbilityAbAttr)
       .attr(UnsuppressableAbilityAbAttr)
