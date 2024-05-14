@@ -1,6 +1,6 @@
 import { Moves } from "./enums/moves";
 import { ChargeAnim, MoveChargeAnim, initMoveAnim, loadMoveAnimAssets } from "./battle-anims";
-import { BattleEndPhase, MovePhase, NewBattlePhase, PartyEffectPhase, PartyStatusCurePhase, PokemonHealPhase, StatChangePhase, SwitchSummonPhase } from "../phases";
+import { BattleEndPhase, MovePhase, NewBattlePhase, PartyStatusCurePhase, PokemonHealPhase, StatChangePhase, SwitchSummonPhase } from "../phases";
 import { BattleStat, getBattleStatName } from "./battle-stat";
 import { EncoreTag } from "./battler-tags";
 import { BattlerTagType } from "./enums/battler-tag-type";
@@ -824,7 +824,7 @@ export class HealAttr extends MoveEffectAttr {
 
   addHealPhase(target: Pokemon, healRatio: number) {
     target.scene.unshiftPhase(new PokemonHealPhase(target.scene, target.getBattlerIndex(),
-      Math.max(Math.floor(target.getMaxHp() * healRatio), 1), getPokemonMessage(target, ' regained\nhealth!'), true, !this.showAnim));
+      Math.max(Math.floor(target.getMaxHp() * healRatio), 1), getPokemonMessage(target, ' \nhad its HP restored.'), true, !this.showAnim));
   }
 
   getTargetBenefitScore(user: Pokemon, target: Pokemon, move: Move): integer {
@@ -959,6 +959,42 @@ export class SandHealAttr extends WeatherHealAttr {
       default:
         return 0.5;
     }
+  }
+}
+
+/**
+ * Heals the target by either {@link normalHealRatio} or {@link boostedHealRatio} 
+ * depending on the evaluation of {@link condition}
+ * @see {@link apply}
+ * @param user The Pokemon using this move
+ * @param target The target Pokemon of this move
+ * @param move This move
+ * @param args N/A
+ * @returns if the move was successful
+ */
+export class BoostHealAttr extends HealAttr {
+  private normalHealRatio?: number;
+  private boostedHealRatio?: number;
+  private condition?: MoveConditionFunc;
+
+  /** 
+   * @param normalHealRatio Healing received when {@link condition} is false
+   * @param boostedHealRatio Healing received when {@link condition} is true
+   * @param showAnim Should a healing animation be showed?
+   * @param selfTarget Should the move target the user?
+   * @param condition The condition to check against when boosting the healing value
+   */
+  constructor(normalHealRatio?: number, boostedHealRatio?: number, showAnim?: boolean, selfTarget?: boolean, condition?: MoveConditionFunc) {
+    super(normalHealRatio, showAnim, selfTarget);
+    this.normalHealRatio = normalHealRatio;
+    this.boostedHealRatio = boostedHealRatio;
+    this.condition = condition;
+  }
+
+  apply(user: Pokemon, target: Pokemon, move: Move, args: any[]): boolean {
+    const healRatio = this.condition(user, target, move) ? this.boostedHealRatio : this.normalHealRatio;
+    this.addHealPhase(target, healRatio);
+    return true;
   }
 }
 
@@ -1120,13 +1156,13 @@ export class StatusEffectAttr extends MoveEffectAttr {
           return false;
       }
       if (!pokemon.status || (pokemon.status.effect === this.effect && move.chance < 0))
-        return pokemon.trySetStatus(this.effect, true, this.cureTurn);
+        return pokemon.trySetStatus(this.effect, true, user, this.cureTurn);
     }
     return false;
   }
 
   getTargetBenefitScore(user: Pokemon, target: Pokemon, move: Move): number {
-    return !(this.selfTarget ? user : target).status && (this.selfTarget ? user : target).canSetStatus(this.effect, true) ? Math.floor(move.chance * -0.1) : 0;
+    return !(this.selfTarget ? user : target).status && (this.selfTarget ? user : target).canSetStatus(this.effect, true, false, user) ? Math.floor(move.chance * -0.1) : 0;
   }
 }
 
@@ -1145,7 +1181,7 @@ export class MultiStatusEffectAttr extends StatusEffectAttr {
   }
 
   getTargetBenefitScore(user: Pokemon, target: Pokemon, move: Move): number {
-    return !(this.selfTarget ? user : target).status && (this.selfTarget ? user : target).canSetStatus(this.effect, true) ? Math.floor(move.chance * -0.1) : 0;
+    return !(this.selfTarget ? user : target).status && (this.selfTarget ? user : target).canSetStatus(this.effect, true, false, user) ? Math.floor(move.chance * -0.1) : 0;
   }
 }
 
@@ -1161,7 +1197,7 @@ export class PsychoShiftEffectAttr extends MoveEffectAttr {
       return false;
     }
     if (!target.status || (target.status.effect === statusToApply && move.chance < 0)) {
-      var statusAfflictResult = target.trySetStatus(statusToApply, true);
+      var statusAfflictResult = target.trySetStatus(statusToApply, true, user);
       if (statusAfflictResult) {
         user.scene.queueMessage(getPokemonMessage(user, getStatusEffectHealText(user.status.effect)));
         user.resetStatus();
@@ -1174,7 +1210,7 @@ export class PsychoShiftEffectAttr extends MoveEffectAttr {
   }
 
   getTargetBenefitScore(user: Pokemon, target: Pokemon, move: Move): number {
-    return !(this.selfTarget ? user : target).status && (this.selfTarget ? user : target).canSetStatus(user.status?.effect, true) ? Math.floor(move.chance * -0.1) : 0;
+    return !(this.selfTarget ? user : target).status && (this.selfTarget ? user : target).canSetStatus(user.status?.effect, true, false, user) ? Math.floor(move.chance * -0.1) : 0;
   }
 }
 
@@ -1314,6 +1350,25 @@ export class BypassSleepAttr extends MoveAttr {
     }
 
     return false;
+  }
+}
+
+/**
+ * Attribute used for moves that bypass the burn damage reduction of physical moves, currently only facade
+ * Called during damage calculation
+ * @param user N/A
+ * @param target N/A
+ * @param move Move with this attribute
+ * @param args Utils.BooleanHolder for burnDamageReductionCancelled
+ * @returns true if the function succeeds
+ */
+export class BypassBurnDamageReductionAttr extends MoveAttr {
+
+  /** Prevents the move's damage from being reduced by burn */
+  apply(user: Pokemon, target: Pokemon, move: Move, args: any[]): boolean {
+    (args[0] as Utils.BooleanHolder).value = true;
+
+    return true; 
   }
 }
 
@@ -1773,6 +1828,37 @@ export class ResetStatsAttr extends MoveEffectAttr {
 
     return true;
   }
+}
+
+/**
+ * Attribute used for moves which swap the user and the target's stat changes.
+ */
+export class SwapStatsAttr extends MoveEffectAttr
+{
+    /**
+   * Swaps the user and the target's stat changes.
+   * @param user Pokemon that used the move
+   * @param target The target of the move
+   * @param move Move with this attribute
+   * @param args N/A
+   * @returns true if the function succeeds
+   */
+    apply(user: Pokemon, target: Pokemon, move: Move, args: any []): boolean
+    {
+        if (!super.apply(user, target, move, args))
+            return false; //Exits if the move can't apply
+        let priorBoost : integer; //For storing a stat boost
+        for (let s = 0; s < target.summonData.battleStats.length; s++)
+          {
+            priorBoost = user.summonData.battleStats[s]; //Store user stat boost
+            user.summonData.battleStats[s] = target.summonData.battleStats[s]; //Applies target boost to self
+            target.summonData.battleStats[s] = priorBoost; //Applies stored boost to target
+          }
+        target.updateInfo();
+        user.updateInfo();
+        target.scene.queueMessage(getPokemonMessage(user, ' switched stat changes with the target!'));
+        return true;
+    }
 }
 
 export class HpSplitAttr extends MoveEffectAttr {
@@ -2590,6 +2676,24 @@ export class WaterSuperEffectTypeMultiplierAttr extends VariableMoveTypeMultipli
   }
 }
 
+export class IceNoEffectTypeAttr extends VariableMoveTypeMultiplierAttr {
+  /**
+   * Checks to see if the Target is Ice-Type or not. If so, the move will have no effect.
+   * @param {Pokemon} user N/A
+   * @param {Pokemon} target Pokemon that is being checked whether Ice-Type or not.
+   * @param {Move} move N/A
+   * @param {any[]} args Sets to false if the target is Ice-Type, so it should do no damage/no effect.
+   * @returns {boolean} Returns true if move is successful, false if Ice-Type.
+   */
+   apply(user: Pokemon, target: Pokemon, move: Move, args: any[]): boolean {
+    if (target.isOfType(Type.ICE)) {
+      (args[0] as Utils.BooleanHolder).value = false;
+      return false;
+    }
+    return true;
+  }
+}
+
 export class FlyingTypeMultiplierAttr extends VariableMoveTypeMultiplierAttr {
   apply(user: Pokemon, target: Pokemon, move: Move, args: any[]): boolean {
     const multiplier = args[0] as Utils.NumberHolder;
@@ -2605,6 +2709,29 @@ export class OneHitKOAccuracyAttr extends VariableAccuracyAttr {
       accuracy.value = 0;
     else
       accuracy.value = Math.min(Math.max(30 + 100 * (1 - target.level / user.level), 0), 100);
+    return true;
+  }
+}
+
+export class SheerColdAccuracyAttr extends OneHitKOAccuracyAttr {
+  /**
+   * Changes the normal One Hit KO Accuracy Attr to implement the Gen VII changes, 
+   * where if the user is Ice-Type, it has more accuracy.
+   * @param {Pokemon} user Pokemon that is using the move; checks the Pokemon's level.
+   * @param {Pokemon} target Pokemon that is receiving the move; checks the Pokemon's level.
+   * @param {Move} move N/A 
+   * @param {any[]} args Uses the accuracy argument, allowing to change it from either 0 if it doesn't pass
+   * the first if/else, or 30/20 depending on the type of the user Pokemon.
+   * @returns Returns true if move is successful, false if misses.
+   */
+  apply(user: Pokemon, target: Pokemon, move: Move, args: any[]): boolean {
+    const accuracy = args[0] as Utils.NumberHolder;
+      if (user.level < target.level) {
+          accuracy.value = 0;
+      } else { 
+         const baseAccuracy = user.isOfType(Type.ICE) ? 30 : 20;
+         accuracy.value = Math.min(Math.max(baseAccuracy + 100 * (1 - target.level / user.level), 0), 100);
+      }
     return true;
   }
 }
@@ -2653,6 +2780,11 @@ const crashDamageFunc = (user: Pokemon, move: Move) => {
 };
 
 export class TypelessAttr extends MoveAttr { }
+/**
+* Attribute used for moves which ignore redirection effects, and always target their original target, i.e. Snipe Shot
+* Bypasses Storm Drain, Follow Me, Ally Switch, and the like.
+*/ 
+export class BypassRedirectAttr extends MoveAttr { }
 
 export class DisableMoveAttr extends MoveEffectAttr {
   constructor() {
@@ -4832,7 +4964,8 @@ export function initMoves() {
       .attr(StatChangeAttr, [ BattleStat.ATK, BattleStat.SPATK ], -2),
     new AttackMove(Moves.FACADE, Type.NORMAL, MoveCategory.PHYSICAL, 70, 100, 20, -1, 0, 3)
       .attr(MovePowerMultiplierAttr, (user, target, move) => user.status
-        && (user.status.effect === StatusEffect.BURN || user.status.effect === StatusEffect.POISON || user.status.effect === StatusEffect.TOXIC || user.status.effect === StatusEffect.PARALYSIS) ? 2 : 1),
+        && (user.status.effect === StatusEffect.BURN || user.status.effect === StatusEffect.POISON || user.status.effect === StatusEffect.TOXIC || user.status.effect === StatusEffect.PARALYSIS) ? 2 : 1)
+        .attr(BypassBurnDamageReductionAttr),
     new AttackMove(Moves.FOCUS_PUNCH, Type.FIGHTING, MoveCategory.PHYSICAL, 150, 100, 20, -1, -3, 3)
       .punchingMove()
       .ignoresVirtual()
@@ -5003,9 +5136,10 @@ export function initMoves() {
     new AttackMove(Moves.SAND_TOMB, Type.GROUND, MoveCategory.PHYSICAL, 35, 85, 15, 100, 0, 3)
       .attr(TrapAttr, BattlerTagType.SAND_TOMB)
       .makesContact(false),
-    new AttackMove(Moves.SHEER_COLD, Type.ICE, MoveCategory.SPECIAL, 200, 30, 5, -1, 0, 3)
+    new AttackMove(Moves.SHEER_COLD, Type.ICE, MoveCategory.SPECIAL, 200, 20, 5, -1, 0, 3)
+      .attr(IceNoEffectTypeAttr)
       .attr(OneHitKOAttr)
-      .attr(OneHitKOAccuracyAttr),
+      .attr(SheerColdAccuracyAttr),
     new AttackMove(Moves.MUDDY_WATER, Type.WATER, MoveCategory.SPECIAL, 90, 85, 10, 30, 0, 3)
       .attr(StatChangeAttr, BattleStat.ACC, -1)
       .target(MoveTarget.ALL_NEAR_ENEMIES),
@@ -5134,7 +5268,7 @@ export function initMoves() {
         || user.status?.effect === StatusEffect.TOXIC
         || user.status?.effect === StatusEffect.PARALYSIS
         || user.status?.effect === StatusEffect.SLEEP)
-        && target.canSetStatus(user.status?.effect)
+        && target.canSetStatus(user.status?.effect, false, false, user)
         ),
     new AttackMove(Moves.TRUMP_CARD, Type.NORMAL, MoveCategory.SPECIAL, -1, -1, 5, -1, 0, 4)
       .makesContact()
@@ -5176,7 +5310,7 @@ export function initMoves() {
       .attr(AddArenaTrapTagAttr, ArenaTagType.TOXIC_SPIKES)
       .target(MoveTarget.ENEMY_SIDE),
     new StatusMove(Moves.HEART_SWAP, Type.PSYCHIC, -1, 10, -1, 0, 4)
-      .unimplemented(),
+      .attr(SwapStatsAttr),
     new SelfStatusMove(Moves.AQUA_RING, Type.WATER, -1, 20, -1, 0, 4)
       .attr(AddBattlerTagAttr, BattlerTagType.AQUA_RING, true, true),
     new SelfStatusMove(Moves.MAGNET_RISE, Type.ELECTRIC, -1, 10, -1, 0, 4)
@@ -5941,9 +6075,8 @@ export function initMoves() {
       .attr(StatChangeAttr, BattleStat.SPD, -1, true)
       .punchingMove(),
     new StatusMove(Moves.FLORAL_HEALING, Type.FAIRY, -1, 10, -1, 0, 7)
-      .attr(HealAttr, 0.5, true, false)
-      .triageMove()
-      .partial(),
+      .attr(BoostHealAttr, 0.5, 2/3, true, false, (user, target, move) => user.scene.arena.terrain?.terrainType === TerrainType.GRASSY)
+      .triageMove(),
     new AttackMove(Moves.HIGH_HORSEPOWER, Type.GROUND, MoveCategory.PHYSICAL, 95, 95, 10, -1, 0, 7),
     new StatusMove(Moves.STRENGTH_SAP, Type.GRASS, 100, 10, 100, 0, 7)
       .attr(StrengthSapHealAttr)
@@ -6130,7 +6263,7 @@ export function initMoves() {
       .ignoresVirtual(),
     /* End Unused */
     new AttackMove(Moves.ZIPPY_ZAP, Type.ELECTRIC, MoveCategory.PHYSICAL, 80, 100, 10, 100, 2, 7)
-      .attr(CritOnlyAttr),
+      .attr(StatChangeAttr, BattleStat.EVA, 1, true),
     new AttackMove(Moves.SPLISHY_SPLASH, Type.WATER, MoveCategory.SPECIAL, 90, 100, 15, 30, 0, 7)
       .attr(StatusEffectAttr, StatusEffect.PARALYSIS)
       .target(MoveTarget.ALL_NEAR_ENEMIES),
@@ -6155,7 +6288,7 @@ export function initMoves() {
     new AttackMove(Moves.FREEZY_FROST, Type.ICE, MoveCategory.SPECIAL, 100, 90, 10, -1, 0, 7)
       .attr(ResetStatsAttr),
     new AttackMove(Moves.SPARKLY_SWIRL, Type.FAIRY, MoveCategory.SPECIAL, 120, 85, 5, -1, 0, 7)
-      .partial(),
+      .attr(PartyStatusCureAttr, null, Abilities.NONE),
     new AttackMove(Moves.VEEVEE_VOLLEY, Type.NORMAL, MoveCategory.PHYSICAL, -1, -1, 20, -1, 0, 7)
       .attr(FriendshipPowerAttr),
     new AttackMove(Moves.DOUBLE_IRON_BASH, Type.STEEL, MoveCategory.PHYSICAL, 60, 100, 5, 30, 0, 7)
@@ -6172,7 +6305,8 @@ export function initMoves() {
       .attr(DiscourageFrequentUseAttr)
       .ignoresVirtual(),
     new AttackMove(Moves.SNIPE_SHOT, Type.WATER, MoveCategory.SPECIAL, 80, 100, 15, -1, 0, 8)
-      .partial(),
+      .attr(HighCritAttr)  
+      .attr(BypassRedirectAttr),
     new AttackMove(Moves.JAW_LOCK, Type.DARK, MoveCategory.PHYSICAL, 80, 100, 10, -1, 0, 8)
       .attr(AddBattlerTagAttr, BattlerTagType.TRAPPED, false, false, 1)
       .attr(AddBattlerTagAttr, BattlerTagType.TRAPPED, true, false, 1)
@@ -6325,7 +6459,8 @@ export function initMoves() {
       .attr(ConfuseAttr),
     new StatusMove(Moves.LIFE_DEW, Type.WATER, -1, 10, -1, 0, 8)
       .attr(HealAttr, 0.25, true, false)
-      .target(MoveTarget.USER_AND_ALLIES),
+      .target(MoveTarget.USER_AND_ALLIES)
+      .ignoresProtect(),
     new SelfStatusMove(Moves.OBSTRUCT, Type.DARK, 100, 10, -1, 4, 8)
       .attr(ProtectAttr, BattlerTagType.OBSTRUCT),
     new AttackMove(Moves.FALSE_SURRENDER, Type.DARK, MoveCategory.PHYSICAL, 80, -1, 10, -1, 0, 8),
@@ -6709,8 +6844,9 @@ export function initMoves() {
       .attr(ForceSwitchOutAttr, true, false)
       .target(MoveTarget.BOTH_SIDES),
     new SelfStatusMove(Moves.TIDY_UP, Type.NORMAL, -1, 10, 100, 0, 9)
-      .attr(StatChangeAttr, [ BattleStat.ATK, BattleStat.SPD ], 1, true)
-      .attr(RemoveArenaTrapAttr),
+      .attr(StatChangeAttr, [ BattleStat.ATK, BattleStat.SPD ], 1, true, null, true, true)
+      .attr(RemoveArenaTrapAttr)
+      .target(MoveTarget.BOTH_SIDES),
     new StatusMove(Moves.SNOWSCAPE, Type.ICE, -1, 10, -1, 0, 9)
       .attr(WeatherChangeAttr, WeatherType.SNOW)
       .target(MoveTarget.BOTH_SIDES),
@@ -6747,7 +6883,7 @@ export function initMoves() {
         const turnMove = user.getLastXMoves(1);
         return !turnMove.length || turnMove[0].move !== move.id || turnMove[0].result !== MoveResult.SUCCESS;
       }), // TODO Add Instruct/Encore interaction
-    new AttackMove(Moves.COMEUPPANCE, Type.DARK, MoveCategory.PHYSICAL, 1, 100, 10, -1, 0, 9)
+    new AttackMove(Moves.COMEUPPANCE, Type.DARK, MoveCategory.PHYSICAL, -1, 100, 10, -1, 0, 9)
       .attr(CounterDamageAttr, (move: Move) => (move.category === MoveCategory.PHYSICAL || move.category === MoveCategory.SPECIAL), 1.5)
       .target(MoveTarget.ATTACKER),
     new AttackMove(Moves.AQUA_CUTTER, Type.WATER, MoveCategory.PHYSICAL, 70, 100, 20, -1, 0, 9)
