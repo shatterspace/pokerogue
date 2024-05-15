@@ -928,6 +928,37 @@ export class PreserveBerryModifier extends PersistentModifier {
   }
 }
 
+export class WeatherDamageImmunityModifier extends PersistentModifier {
+  constructor(type: ModifierType, stackCount?: integer) {
+    super(type, stackCount);
+  }
+
+  match(modifier: Modifier) {
+    return modifier instanceof WeatherDamageImmunityModifier;
+  }
+
+  clone() {
+    return new WeatherDamageImmunityModifier(this.type, this.stackCount);
+  }
+
+  shouldApply(args: any[]): boolean {
+    return super.shouldApply(args) && args[0] instanceof Pokemon && args[1] instanceof Utils.BooleanHolder;
+  }
+
+  apply(args: any[]): boolean {
+    const pokemon = args[0] as Pokemon;
+    if (pokemon.isPlayer()) {
+      (args[1] as Utils.BooleanHolder).value = true;
+    }
+
+    return true;
+  }
+
+  getMaxStackCount(scene: BattleScene): integer {
+    return 1;
+  }
+}
+
 export class PokemonInstantReviveModifier extends PokemonHeldItemModifier {
   constructor(type: ModifierType, pokemonId: integer, stackCount?: integer) {
     super(type, pokemonId, stackCount);
