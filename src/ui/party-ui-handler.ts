@@ -55,7 +55,7 @@ export enum PartyOption {
 }
 
 export type PartySelectCallback = (cursor: integer, option: PartyOption) => void;
-export type PartyModifierTransferSelectCallback = (fromCursor: integer, index: integer, toCursor?: integer) => void;
+export type PartyModifierTransferSelectCallback = (fromCursor: integer, index: integer, itemQuantity?: integer, toCursor?: integer) => void;
 export type PartyModifierSpliceSelectCallback = (fromCursor: integer, toCursor?: integer) => void;
 export type PokemonSelectFilter = (pokemon: PlayerPokemon) => string;
 export type PokemonModifierTransferSelectFilter = (pokemon: PlayerPokemon, modifier: PokemonHeldItemModifier) => string;
@@ -85,6 +85,8 @@ export default class PartyUiHandler extends MessageUiHandler {
   private transferMode: boolean;
   private transferOptionCursor: integer;
   private transferCursor: integer;
+  private transferQuantities: integer[];
+  private transferQuantitiesMax: integer[];
   
   private lastCursor: integer = 0;
   private selectCallback: PartySelectCallback | PartyModifierTransferSelectCallback;
@@ -218,14 +220,17 @@ export default class PartyUiHandler extends MessageUiHandler {
     let success = false;
 
     if (this.optionsMode) {
+      const option = this.options[this.optionsCursor]
       if (button === Button.ACTION) {
-        const option = this.options[this.optionsCursor];
         const pokemon = this.scene.getParty()[this.cursor];
         if (this.partyUiMode === PartyUiMode.MODIFIER_TRANSFER && !this.transferMode && option !== PartyOption.CANCEL) {
+          const pokemon = this.scene.getParty()[this.cursor];
+          const itemModifiers = this.scene.findModifiers(m => m instanceof PokemonHeldItemModifier
+            && (m as PokemonHeldItemModifier).getTransferrable(true) && (m as PokemonHeldItemModifier).pokemonId === pokemon.id) as PokemonHeldItemModifier[];
           this.startTransfer();
           this.clearOptions();
           ui.playSelect();
-          return true;
+          return true;              
         } else if (this.partyUiMode === PartyUiMode.REMEMBER_MOVE_MODIFIER && option !== PartyOption.CANCEL) {
           let filterResult = (this.selectFilter as PokemonSelectFilter)(pokemon);
           if (filterResult === null) {
@@ -255,7 +260,9 @@ export default class PartyUiHandler extends MessageUiHandler {
               this.clearOptions();
             if (this.selectCallback) {
               if (option === PartyOption.TRANSFER) {
-                (this.selectCallback as PartyModifierTransferSelectCallback)(this.transferCursor, this.transferOptionCursor, this.cursor);
+                if (this.transferCursor !== this.cursor) {
+                  (this.selectCallback as PartyModifierTransferSelectCallback)(this.transferCursor, this.transferOptionCursor, this.transferQuantities[this.transferOptionCursor], this.cursor);
+                }
                 this.clearTransfer();
               } else if (this.partyUiMode === PartyUiMode.SPLICE) {
                 if (option === PartyOption.SPLICE) {
@@ -348,6 +355,20 @@ export default class PartyUiHandler extends MessageUiHandler {
         return true;
       } else {
         switch (button) {
+          case Button.LEFT:
+            if (this.partyUiMode === PartyUiMode.MODIFIER_TRANSFER) {
+              this.transferQuantities[option] = this.transferQuantities[option] == 1 ? this.transferQuantitiesMax[option] : this.transferQuantities[option] - 1
+              this.updateOptions()
+              success = this.setCursor(this.optionsCursor)
+            }
+            break;
+          case Button.RIGHT:
+            if (this.partyUiMode === PartyUiMode.MODIFIER_TRANSFER) {
+              this.transferQuantities[option] = this.transferQuantities[option] == this.transferQuantitiesMax[option] ? 1 : this.transferQuantities[option] + 1
+              this.updateOptions()
+              success = this.setCursor(this.optionsCursor)
+            }
+            break;
           case Button.UP:
             success = this.setCursor(this.optionsCursor ? this.optionsCursor - 1 : this.options.length - 1);
             break;
@@ -359,6 +380,12 @@ export default class PartyUiHandler extends MessageUiHandler {
     } else {
       if (button === Button.ACTION) {
         if (this.cursor < 6) {
+          if (this.partyUiMode === PartyUiMode.MODIFIER_TRANSFER && !this.transferMode) {
+            const itemModifiers = this.scene.findModifiers(m => m instanceof PokemonHeldItemModifier
+              && (m as PokemonHeldItemModifier).getTransferrable(true) && (m as PokemonHeldItemModifier).pokemonId === this.scene.getParty()[this.cursor].id) as PokemonHeldItemModifier[]
+            this.transferQuantities = itemModifiers.map(item => item.getStackCount())
+            this.transferQuantitiesMax = itemModifiers.map(item => item.getStackCount())
+          }
           this.showOptions();
           ui.playSelect();
         } else if (this.partyUiMode === PartyUiMode.FAINT_SWITCH)
@@ -690,8 +717,8 @@ export default class PartyUiHandler extends MessageUiHandler {
       } else {
         const itemModifier = itemModifiers[option];
         optionName = itemModifier.type.name;
-        if (itemModifier.stackCount > 1)
-          optionName += ` (${itemModifier.stackCount})`;
+        if (this.transferQuantitiesMax[option] > 1)
+          optionName += ` (${this.transferQuantities[option]})`;
       }
 
       const yCoord = -6 - 16 * o;
