@@ -407,6 +407,17 @@ export class DoubleBattleChanceBoosterModifierType extends ModifierType {
   }
 }
 
+export class DoubleBattleChancePreventerModifierType extends ModifierType {
+  public battleCount: integer;
+
+  constructor(name: string, battleCount: integer) {
+    super(name, `Prevents double battles for ${battleCount} battles`, (_type, _args) => new Modifiers.DoubleBattleChancePreventerModifier(this, this.battleCount),
+      null, 'repel');
+
+    this.battleCount = battleCount;
+  }
+}
+
 export class TempBattleStatBoosterModifierType extends ModifierType implements GeneratedPersistentModifierType {
   public tempBattleStat: TempBattleStat;
 
@@ -1031,9 +1042,9 @@ export const modifierTypes = {
   PP_UP: () => new PokemonPpUpModifierType(`modifierType:ModifierType.PP_UP`, 'pp_up', 1),
   PP_MAX: () => new PokemonPpUpModifierType(`modifierType:ModifierType.PP_MAX`, 'pp_max', 3),
 
-  /*REPEL: () => new DoubleBattleChanceBoosterModifierType('Repel', 5),
-  SUPER_REPEL: () => new DoubleBattleChanceBoosterModifierType('Super Repel', 10),
-  MAX_REPEL: () => new DoubleBattleChanceBoosterModifierType('Max Repel', 25),*/
+  REPEL: () => new DoubleBattleChancePreventerModifierType('Repel', 5),
+  SUPER_REPEL: () => new DoubleBattleChancePreventerModifierType('Super Repel', 10),
+  MAX_REPEL: () => new DoubleBattleChancePreventerModifierType('Max Repel', 25),
 
   LURE: () => new DoubleBattleChanceBoosterModifierType(`modifierType:ModifierType.LURE`, 'lure', 5),
   SUPER_LURE: () => new DoubleBattleChanceBoosterModifierType(`modifierType:ModifierType.SUPER_LURE`, 'super_lure', 10),
@@ -1201,7 +1212,14 @@ const modifierPool: ModifierPool = {
       const thresholdPartyMemberCount = Math.min(party.filter(p => p.hp && p.getMoveset().filter(m => (m.getMove().pp - m.ppUsed) <= 5).length).length, 3);
       return thresholdPartyMemberCount;
     }, 3),
-    new WeightedModifierType(modifierTypes.LURE, 2),
+    new WeightedModifierType(modifierTypes.REPEL, (party: Pokemon[]) => {
+      const existingItem = party[0].scene.findModifier(m => m.type instanceof DoubleBattleChancePreventerModifierType || m.type instanceof DoubleBattleChanceBoosterModifierType);
+      return existingItem ? 0 : 2;
+    }),
+    new WeightedModifierType(modifierTypes.LURE, (party: Pokemon[]) => {
+      const existingItem = party[0].scene.findModifier(m => m.type instanceof DoubleBattleChancePreventerModifierType || m.type instanceof DoubleBattleChanceBoosterModifierType);
+      return existingItem ? 0 : 2;
+    }),
     new WeightedModifierType(modifierTypes.TEMP_STAT_BOOSTER, 4),
     new WeightedModifierType(modifierTypes.BERRY, 2),
     new WeightedModifierType(modifierTypes.TM_COMMON, 1),
@@ -1245,7 +1263,14 @@ const modifierPool: ModifierPool = {
       return thresholdPartyMemberCount;
     }, 3),
     new WeightedModifierType(modifierTypes.DIRE_HIT, 4),
-    new WeightedModifierType(modifierTypes.SUPER_LURE, 4),
+    new WeightedModifierType(modifierTypes.SUPER_REPEL, (party: Pokemon[]) => {
+      const existingItem = party[0].scene.findModifier(m => m.type instanceof DoubleBattleChancePreventerModifierType || m.type instanceof DoubleBattleChanceBoosterModifierType);
+      return existingItem ? 0 : 4;
+    }),
+    new WeightedModifierType(modifierTypes.SUPER_LURE, (party: Pokemon[]) => {
+      const existingItem = party[0].scene.findModifier(m => m.type instanceof DoubleBattleChancePreventerModifierType || m.type instanceof DoubleBattleChanceBoosterModifierType);
+      return existingItem ? 0 : 4;
+    }),
     new WeightedModifierType(modifierTypes.NUGGET, 5),
     new WeightedModifierType(modifierTypes.EVOLUTION_ITEM, (party: Pokemon[]) => {
       return Math.min(Math.ceil(party[0].scene.currentBattle.waveIndex / 15), 8);
@@ -1264,7 +1289,14 @@ const modifierPool: ModifierPool = {
   ].map(m => { m.setTier(ModifierTier.GREAT); return m; }),
   [ModifierTier.ULTRA]: [
     new WeightedModifierType(modifierTypes.ULTRA_BALL, 24),
-    new WeightedModifierType(modifierTypes.MAX_LURE, 4),
+    new WeightedModifierType(modifierTypes.MAX_REPEL, (party: Pokemon[]) => {
+      const existingItem = party[0].scene.findModifier(m => m.type instanceof DoubleBattleChancePreventerModifierType || m.type instanceof DoubleBattleChanceBoosterModifierType);
+      return existingItem ? 0 : 4;
+    }),
+    new WeightedModifierType(modifierTypes.MAX_LURE, (party: Pokemon[]) => {
+      const existingItem = party[0].scene.findModifier(m => m.type instanceof DoubleBattleChancePreventerModifierType || m.type instanceof DoubleBattleChanceBoosterModifierType);
+      return existingItem ? 0 : 4;
+    }),
     new WeightedModifierType(modifierTypes.BIG_NUGGET, 12),
     new WeightedModifierType(modifierTypes.PP_UP, 9),
     new WeightedModifierType(modifierTypes.PP_MAX, 3),
