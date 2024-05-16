@@ -2502,6 +2502,27 @@ export class ReduceStatusEffectDurationAbAttr extends AbAttr {
   }
 }
 
+export class HealFromStatusAbAttr extends AbAttr {
+  private healRatio: integer
+  private statusEffects: StatusEffect[];
+  constructor(healRatio: integer, statusEffects: StatusEffect[]) {
+    super();
+    this.healRatio = healRatio;
+    this.statusEffects = statusEffects;
+  }
+
+  apply(pokemon: Pokemon, passive: boolean, cancelled: Utils.BooleanHolder, args: any[]): boolean | Promise<boolean> {
+    if (this.statusEffects.includes(pokemon.status.effect)) {
+      let healAmount: integer = Math.floor(pokemon.getMaxHp()*(this.healRatio/8));
+      pokemon.heal(healAmount);
+      pokemon.status.incrementTurn();
+      cancelled.value = true;
+      return true;
+    }
+    return false;
+  }
+}
+
 export class FlinchEffectAbAttr extends AbAttr {
   constructor() {
     super(true);
@@ -3143,7 +3164,7 @@ export function initAbilities() {
     new Ability(Abilities.IRON_FIST, 4)
       .attr(MovePowerBoostAbAttr, (user, target, move) => move.hasFlag(MoveFlags.PUNCHING_MOVE), 1.2),
     new Ability(Abilities.POISON_HEAL, 4)
-      .unimplemented(),
+      .attr(HealFromStatusAbAttr,1,[StatusEffect.POISON,StatusEffect.TOXIC]),
     new Ability(Abilities.ADAPTABILITY, 4)
       .attr(StabBoostAbAttr),
     new Ability(Abilities.SKILL_LINK, 4)
