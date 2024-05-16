@@ -12,10 +12,10 @@ import * as Utils from "../utils";
 import { WeatherType } from "./weather";
 import { ArenaTagSide, ArenaTrapTag } from "./arena-tag";
 import { ArenaTagType } from "./enums/arena-tag-type";
-import { UnswappableAbilityAbAttr, UncopiableAbilityAbAttr, UnsuppressableAbilityAbAttr, NoTransformAbilityAbAttr, BlockRecoilDamageAttr, BlockOneHitKOAbAttr, IgnoreContactAbAttr, MaxMultiHitAbAttr, applyAbAttrs, BlockNonDirectDamageAbAttr, applyPreSwitchOutAbAttrs, PreSwitchOutAbAttr, applyPostDefendAbAttrs, PostDefendContactApplyStatusEffectAbAttr, MoveAbilityBypassAbAttr, ReverseDrainAbAttr, FieldPreventExplosiveMovesAbAttr, ForceSwitchOutImmunityAbAttr } from "./ability";
+import { UnswappableAbilityAbAttr, UncopiableAbilityAbAttr, UnsuppressableAbilityAbAttr, BlockRecoilDamageAttr, BlockOneHitKOAbAttr, IgnoreContactAbAttr, MaxMultiHitAbAttr, applyAbAttrs, BlockNonDirectDamageAbAttr, applyPreSwitchOutAbAttrs, PreSwitchOutAbAttr, applyPostDefendAbAttrs, PostDefendContactApplyStatusEffectAbAttr, MoveAbilityBypassAbAttr, ReverseDrainAbAttr, FieldPreventExplosiveMovesAbAttr, ForceSwitchOutImmunityAbAttr, BlockItemTheftAbAttr } from "./ability";
 import { Abilities } from "./enums/abilities";
 import { allAbilities } from './ability';
-import { PokemonHeldItemModifier } from "../modifier/modifier";
+import { BerryModifier, PokemonHeldItemModifier } from "../modifier/modifier";
 import { BattlerIndex } from "../battle";
 import { Stat } from "./pokemon-stat";
 import { TerrainType } from "./terrain";
@@ -25,6 +25,7 @@ import { ModifierPoolType } from "#app/modifier/modifier-type";
 import { Command } from "../ui/command-ui-handler";
 import { Biome } from "./enums/biome";
 import i18next, { Localizable } from '../plugins/i18n';
+import { getBerryName } from "./berry";
 
 export enum MoveCategory {
   PHYSICAL,
@@ -1385,6 +1386,48 @@ export class StealHeldItemChanceAttr extends MoveEffectAttr {
   getTargetBenefitScore(user: Pokemon, target: Pokemon, move: Move): number {
     const heldItems = this.getTargetHeldItems(target);
     return heldItems.length ? -5 : 0;
+  }
+}
+
+export class RemoveHeldBerryAttr extends MoveEffectAttr {
+  constructor() {
+    super(false, MoveEffectTrigger.HIT);
+  }
+
+  apply(user: Pokemon, target: Pokemon, move: Move, args: any[]): boolean | Promise<boolean> {
+    return new Promise<boolean>(resolve => {
+      const heldBerries = this.getTargetHeldBerries(target).filter(b => b.getTransferrable(false))
+
+      if (!heldBerries.length) {
+        return resolve(false);
+      }
+      
+      const cancelled = new Utils.BooleanHolder(false);
+      applyAbAttrs(BlockItemTheftAbAttr, target, cancelled);
+
+      if (cancelled.value) {
+        return resolve(false);
+      }
+
+      const removedBerry = heldBerries[user.randSeedInt(heldBerries.length)];
+
+      if (!(--removedBerry.stackCount)) {
+        const couldRemoveBerry = target.scene.removeModifier(removedBerry, true);
+
+        if (!couldRemoveBerry) {
+          return resolve(false);
+        }
+      }
+
+      target.scene.updateModifiers(target.isPlayer(), false)
+      user.scene.queueMessage(getPokemonMessage(user, ` burned\n${target.name}'s ${getBerryName(removedBerry.berryType)}!`));
+      resolve(true);
+    });
+  }
+
+  getTargetHeldBerries(target: Pokemon): BerryModifier[] {
+    return target.scene.findModifiers(m => m instanceof BerryModifier
+      && (m as BerryModifier).pokemonId === target.id, target.isPlayer()) as BerryModifier[];
   }
 }
 
@@ -5805,7 +5848,7 @@ export function initMoves() {
       .attr(ForceSwitchOutAttr),
     new AttackMove(Moves.INCINERATE, Type.FIRE, MoveCategory.SPECIAL, 60, 100, 15, -1, 0, 5)
       .target(MoveTarget.ALL_NEAR_ENEMIES)
-      .partial(),
+      .attr(RemoveHeldBerryAttr),
     new StatusMove(Moves.QUASH, Type.DARK, 100, 15, -1, 0, 5)
       .unimplemented(),
     new AttackMove(Moves.ACROBATICS, Type.FLYING, MoveCategory.PHYSICAL, 55, 100, 15, -1, 0, 5)
