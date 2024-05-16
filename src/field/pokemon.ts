@@ -1607,6 +1607,7 @@ export default abstract class Pokemon extends Phaser.GameObjects.Container {
 
           console.log('damage', damage.value, move.name, power.value, sourceAtk, targetDef);
 
+
           if (damage.value) {
             if (this.getHpRatio() === 1)
               applyPreDefendAbAttrs(PreDefendFullHpEndureAbAttr, this, source, battlerMove, cancelled, damage);
@@ -1614,11 +1615,38 @@ export default abstract class Pokemon extends Phaser.GameObjects.Container {
               this.scene.applyModifiers(EnemyEndureChanceModifier, false, this);
 
             const oneHitKo = result === HitResult.ONE_HIT_KO;
+
+            // damageAndUpdate: will queue potential messages for critical hit, effectiveness, fainted - in that order
             damage.value = this.damageAndUpdate(damage.value, result as DamageResult, isCritical, oneHitKo, oneHitKo);
             this.turnData.damageTaken += damage.value;
+
+            // queue critical message before effectiveness
             if (isCritical)
               this.scene.queueMessage(i18next.t('battle:hitResultCriticalHit'));
-            this.scene.setPhaseQueueSplice();
+
+            // hitsLeft: for multi-hit moves, only want to render effectiveness text at end.
+            // also want to render if a pokemon fainted
+            //console.log(`the number of hits left for this turn for ${this.name} is ${source.turnData.hitsLeft}`)
+            if (source.turnData.hitsLeft === 1 || this.isFainted()) {
+              switch (result as HitResult) {
+                case HitResult.SUPER_EFFECTIVE:
+                  this.scene.queueMessage(i18next.t('battle:hitResultSuperEffective'));
+                  break;
+                case HitResult.NOT_VERY_EFFECTIVE:
+                  this.scene.queueMessage(i18next.t('battle:hitResultNotVeryEffective'));
+                  break;
+                case HitResult.NO_EFFECT:
+                  this.scene.queueMessage(i18next.t('battle:hitResultNoEffect', { pokemonName: this.name }));
+                  break;
+                case HitResult.IMMUNE:
+                  this.scene.queueMessage(`${this.name} is unaffected!`);
+                  break;
+                case HitResult.ONE_HIT_KO:  
+                  this.scene.queueMessage(i18next.t('battle:hitResultOneHitKO'));
+                  break;
+              }
+            }
+
             if (source.isPlayer()) {
               this.scene.validateAchvs(DamageAchv, damage);
               if (damage.value > this.scene.gameData.gameStats.highestDamage)
@@ -1626,34 +1654,40 @@ export default abstract class Pokemon extends Phaser.GameObjects.Container {
             }
             source.turnData.damageDealt += damage.value;
             this.battleData.hitCount++;
+            // create attack result and push to turnData
             const attackResult = { move: move.id, result: result as DamageResult, damage: damage.value, critical: isCritical, sourceId: source.id };
             this.turnData.attacksReceived.unshift(attackResult);
             if (source.isPlayer() && !this.isPlayer())
               this.scene.applyModifiers(DamageMoneyRewardModifier, true, source, damage)
-          }
 
-          if (source.turnData.hitsLeft === 1) {
-            switch (result) {
-              case HitResult.SUPER_EFFECTIVE:
-                this.scene.queueMessage(i18next.t('battle:hitResultSuperEffective'));
-                break;
-              case HitResult.NOT_VERY_EFFECTIVE:
-                this.scene.queueMessage(i18next.t('battle:hitResultNotVeryEffective'));
-                break;
-              case HitResult.NO_EFFECT:
-                this.scene.queueMessage(i18next.t('battle:hitResultNoEffect', { pokemonName: this.name }));
-                break;
-              case HitResult.IMMUNE:
-                this.scene.queueMessage(`${this.name} is unaffected!`);
-                break;
-              case HitResult.ONE_HIT_KO:  
-                this.scene.queueMessage(i18next.t('battle:hitResultOneHitKO'));
-                break;
+
+            // finally checks and adds Fainted scene
+            if (this.isFainted()) {
+              /**
+               * when adding the FaintPhase, want to toggle future unshiftPhase() and queueMessage() calls 
+               * to appear before the FaintPhase (as FaintPhase will potentially end the encounter and add Phases such as
+               * GameOverPhase, VictoryPhase, etc.. that will interfere with anything else that happens during this MoveEffectPhase)
+               * 
+               * once the MoveEffectPhase is over (and calls it's .end() function, shiftPhase() will reset the PhaseQueueSplice via clearPhaseQueueSplice() )
+               */
+              this.scene.setPhaseQueueSplice();
+              this.scene.unshiftPhase(new FaintPhase(this.scene, this.getBattlerIndex(), oneHitKo));
+              this.resetSummonData();
             }
-          }
 
-          if (damage)
-            this.scene.clearPhaseQueueSplice();
+            /**
+             * since damage is an object, I don't see how this would ever by false?
+             * i think the motivation was to have this here to counter setPhaseQueueSplice()
+             * not sure the original motivation 
+             * 
+             * It would be bad to run both the top if block and the one below commented out without changing the later's condition 
+             */
+            /*
+            if (damage){
+              this.scene.clearPhaseQueueSplice();
+            }
+            */
+          }
         }
         break;
       case MoveCategory.STATUS:
@@ -1689,19 +1723,15 @@ export default abstract class Pokemon extends Phaser.GameObjects.Container {
     }
 
     damage = Math.min(damage, this.hp);
-
     this.hp = this.hp - damage;
-    if (this.isFainted()) {
-      this.scene.unshiftPhase(new FaintPhase(this.scene, this.getBattlerIndex(), preventEndure));
-      this.resetSummonData();
-    }
 
     return damage;
   }
 
-  damageAndUpdate(damage: integer, result?: DamageResult, critical: boolean = false, ignoreSegments: boolean = false, preventEndure: boolean = false): integer {
+  damageAndUpdate(damage: integer, result?: DamageResult, critical: boolean = false, ignoreSegments: boolean = false, preventEndure: boolean = false ): integer {
     const damagePhase = new DamagePhase(this.scene, this.getBattlerIndex(), damage, result as DamageResult, critical);
     this.scene.unshiftPhase(damagePhase);
+
     damage = this.damage(damage, ignoreSegments, preventEndure);
     // Damage amount may have changed, but needed to be queued before calling damage function
     damagePhase.updateAmount(damage);
