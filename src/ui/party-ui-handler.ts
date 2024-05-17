@@ -246,8 +246,7 @@ export default class PartyUiHandler extends MessageUiHandler {
               filterResult = this.moveSelectFilter(pokemon.moveset[this.optionsCursor]);
           } else {
             const transferPokemon = this.scene.getParty()[this.transferCursor];
-            const itemModifiers = this.scene.findModifiers(m => m instanceof PokemonHeldItemModifier
-                && (m as PokemonHeldItemModifier).getTransferrable(true) && (m as PokemonHeldItemModifier).pokemonId === transferPokemon.id) as PokemonHeldItemModifier[];
+            const itemModifiers = transferPokemon.getTransferrableHeldItems();
             filterResult = (this.selectFilter as PokemonModifierTransferSelectFilter)(pokemon, itemModifiers[this.transferOptionCursor]);
           }
           if (filterResult === null) {
@@ -548,8 +547,7 @@ export default class PartyUiHandler extends MessageUiHandler {
         : null;
 
     const itemModifiers = this.partyUiMode === PartyUiMode.MODIFIER_TRANSFER
-      ? this.scene.findModifiers(m => m instanceof PokemonHeldItemModifier
-        && (m as PokemonHeldItemModifier).getTransferrable(true) && (m as PokemonHeldItemModifier).pokemonId === pokemon.id) as PokemonHeldItemModifier[]
+      ? pokemon.getTransferrableHeldItems()
       : null;
 
     if (this.options.length) {
@@ -729,19 +727,25 @@ export default class PartyUiHandler extends MessageUiHandler {
 
   doRelease(slotIndex: integer): void {
     this.showText(this.getReleaseMessage(this.scene.getParty()[slotIndex].name), null, () => {
-      this.clearPartySlots();
-      this.scene.removePartyMemberModifiers(slotIndex);
-      const releasedPokemon = this.scene.getParty().splice(slotIndex, 1)[0];
-      releasedPokemon.destroy();
-      this.populatePartySlots();
-      if (this.cursor >= this.scene.getParty().length)
-        this.setCursor(this.cursor - 1);
+
       if (this.partyUiMode === PartyUiMode.RELEASE) {
         const selectCallback = this.selectCallback;
         this.selectCallback = null;
         selectCallback(this.cursor, PartyOption.RELEASE);
       }
+
+      this.clearPartySlots();
+      this.scene.removePartyMemberModifiers(slotIndex);
+      const releasedPokemon = this.scene.getParty().splice(slotIndex, 1)[0];
+
+      releasedPokemon.destroy();
+      this.populatePartySlots();
+      
+      if (this.cursor >= this.scene.getParty().length)
+        this.setCursor(this.cursor - 1);
+
       this.showText(null, 0);
+
     }, null, true);
   }
 
