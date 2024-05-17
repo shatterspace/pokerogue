@@ -1294,6 +1294,35 @@ export class CursedTag extends BattlerTag {
   }
 }
 
+export class AuraTag extends BattlerTag {
+  constructor(tagType: BattlerTagType, sourceId: number) {
+    super(tagType, BattlerTagLapseType.CUSTOM, 0, undefined, sourceId);
+  }
+
+  lapse(pokemon: Pokemon, lapseType: BattlerTagLapseType): boolean {
+    const source = pokemon.scene.getPokemonById(this.sourceId);
+    return source.isActive(true);
+  }
+}
+
+export class ReceivedMoveDamageMultiplierTag extends AuraTag {
+  public powerMultiplier: number;
+
+  constructor(tagType: BattlerTagType, sourceId: number, powerMultiplier: number) {
+    super(tagType, sourceId);
+    this.powerMultiplier = powerMultiplier;
+  }
+
+  /**
+  * When given a battler tag or json representing one, load the data for it.
+  * @param {BattlerTag | any} source A battler tag
+  */
+  loadTag(source: BattlerTag | any): void {
+    super.loadTag(source);
+    this.powerMultiplier = source.powerMultiplier;
+  }
+}
+
 export function getBattlerTag(tagType: BattlerTagType, turnCount: integer, sourceMove: Moves, sourceId: integer): BattlerTag {
   switch (tagType) {
     case BattlerTagType.RECHARGING:
@@ -1405,6 +1434,8 @@ export function getBattlerTag(tagType: BattlerTagType, turnCount: integer, sourc
       return new MagnetRisenTag(tagType, sourceMove);
     case BattlerTagType.MINIMIZED:
       return new MinimizeTag();
+    case BattlerTagType.FRIEND_GUARD:
+      return new ReceivedMoveDamageMultiplierTag(tagType, sourceId, 0.75);
     case BattlerTagType.NONE:
     default:
         return new BattlerTag(tagType, BattlerTagLapseType.CUSTOM, turnCount, sourceMove, sourceId);
