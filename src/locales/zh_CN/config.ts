@@ -17,6 +17,11 @@ import { pokemonStat } from "./pokemon-stat";
 import { starterSelectUiHandler } from "./starter-select-ui-handler";
 import { titles, trainerClasses, trainerNames } from "./trainers";
 import { tutorial } from "./tutorial";
+import { titles,trainerClasses,trainerNames } from "./trainers";
+import { nature } from "./nature";
+import { partyUiHandler } from "./party-ui-handler";
+import { SummaryUiHandler } from "./summary-ui-handler";
+import { biome } from "./biome";
 import { weather } from "./weather";
 import { battleMessageUiHandler } from "./battle-message-ui-handler";
 import { berry } from "./berry";
@@ -43,6 +48,11 @@ export const zhCnConfig = {
     trainerClasses: trainerClasses,
     trainerNames: trainerNames,
     tutorial: tutorial,
+    nature: nature,
+    partyUiHandler: partyUiHandler,
+    summaryUiHandler: SummaryUiHandler,
+    biome: biome,
+    growth: growth,
     weather: weather,
     battleMessageUiHandler: battleMessageUiHandler,
     berry: berry,
