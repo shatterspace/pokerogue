@@ -489,6 +489,15 @@ export class MoveEffectAttr extends MoveAttr {
     return this.canApply(user, target, move, args); 
   }
 
+  /**
+   * Gets the used move's additional effect chance.
+   * If user's ability has MoveEffectChanceMultiplierAbAttr or IgnoreMoveEffectsAbAttr modifies the base chance.
+   * @param user {@linkcode Pokemon} using this move
+   * @param target {@linkcode Pokemon} target of this move
+   * @param move {@linkcode Move} being used
+   * @param selfEffect {@linkcode Boolean} if move targets user.
+   * @returns Move chance value.
+   */
   getMoveChance(user: Pokemon, target: Pokemon, move: Move, selfEffect?: Boolean): integer {
     let moveChance = new Utils.NumberHolder(move.chance);
     applyAbAttrs(MoveEffectChanceMultiplierAbAttr, user, null, moveChance, move, target, selfEffect);

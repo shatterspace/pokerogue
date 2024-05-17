@@ -922,9 +922,11 @@ export class PreAttackAbAttr extends AbAttr {
   }
 }
 
-/**
- * Attribute used by Sheer Force and Serene Grace. 
- * Modifies moves additional effects with multipliers
+
+/** 
+ * Modifies moves additional effects with multipliers, ie. Sheer Force, Serene Grace. 
+ * @extends AbAttr
+ * @see {@linkcode apply}
  */
 export class MoveEffectChanceMultiplierAbAttr extends AbAttr {
   private chanceMultiplier: number;
@@ -934,12 +936,8 @@ export class MoveEffectChanceMultiplierAbAttr extends AbAttr {
     this.chanceMultiplier = chanceMultiplier;
   }
   /**
-   * Multiplies the base additional effect chance by the given multiplier.
-   * @param {Pokemon} pokemon N/A
-   * @param {boolean} passive N/A
-   * @param {cancelled} cancelled N/A 
-   * @param {any[]} args args[0]: NumberHolder, Move additional effect chance. Has to be higher than or equal to 0. args[1]: Move, Move used by user.
-   * @returns {boolean} true if function succeeds.
+   * @param args [0]: {@linkcode Utils.NumberHolder} Move additional effect chance. Has to be higher than or equal to 0. 
+   *             [1]: {@linkcode Moves } Move used by the ability user.
    */
   apply(pokemon: Pokemon, passive: boolean, cancelled: Utils.BooleanHolder, args: any[]): boolean {
 
@@ -954,19 +952,13 @@ export class MoveEffectChanceMultiplierAbAttr extends AbAttr {
 }
 
 /**
- * Attribute by Shield Dust.
- * Sets all incoming moves additional effect chance to zero, ignoring all effects from moves.
+ * Sets incoming moves additional effect chance to zero, ignoring all effects from moves. ie. Shield Dust.
+ * @extends PreDefendAbAttr
+ * @see {@linkcode applyPreDefend}
  */
 export class IgnoreMoveEffectsAbAttr extends PreDefendAbAttr {
   /**
-   * Setting the move additional effects higher than zero to zero.
-   * @param {Pokemon} pokemon N/A
-   * @param {boolean} passive N/A
-   * @param {Pokemon} attacker N/A
-   * @param {move} move N/A
-   * @param {BooleanHolder} cancelled N/A
-   * @param {any[] } args args[0]: NumberHolder, Move additional effect chance.
-   * @returns {boolean} true if the function succeeds.
+   * @param args [0]: {@linkcode Utils.NumberHolder} Move additional effect chance.
    */
   applyPreDefend(pokemon: Pokemon, passive: boolean, attacker: Pokemon, move: PokemonMove, cancelled: Utils.BooleanHolder, args: any[]): boolean {
   
@@ -1232,7 +1224,7 @@ export class PostAttackApplyStatusEffectAbAttr extends PostAttackAbAttr {
   }
 
   applyPostAttack(pokemon: Pokemon, passive: boolean, attacker: Pokemon, move: PokemonMove, hitResult: HitResult, args: any[]): boolean {
-     //Status inflicted by abilities post attacking are also considered additional effects.
+     /**Status inflicted by abilities post attacking are also considered additional effects.*/
     if (!attacker.hasAbilityWithAttr(IgnoreMoveEffectsAbAttr) && pokemon != attacker && (!this.contactRequired || move.getMove().checkFlag(MoveFlags.MAKES_CONTACT, attacker, pokemon)) && pokemon.randSeedInt(100) < this.chance && !pokemon.status) {
       const effect = this.effects.length === 1 ? this.effects[0] : this.effects[pokemon.randSeedInt(this.effects.length)];
       return attacker.trySetStatus(effect, true, pokemon);
@@ -1263,7 +1255,7 @@ export class PostAttackApplyBattlerTagAbAttr extends PostAttackAbAttr {
   }
 
   applyPostAttack(pokemon: Pokemon, passive: boolean, attacker: Pokemon, move: PokemonMove, hitResult: HitResult, args: any[]): boolean {
-    //Battler tags inflicted by abilities post attacking are also considered additional effects.
+    /**Battler tags inflicted by abilities post attacking are also considered additional effects.*/
     if (!attacker.hasAbilityWithAttr(IgnoreMoveEffectsAbAttr) && pokemon != attacker && (!this.contactRequired || move.getMove().checkFlag(MoveFlags.MAKES_CONTACT, attacker, pokemon)) && pokemon.randSeedInt(100) < this.chance(attacker, pokemon, move) && !pokemon.status) {
       const effect = this.effects.length === 1 ? this.effects[0] : this.effects[pokemon.randSeedInt(this.effects.length)];
       return attacker.addTag(effect);
@@ -1962,10 +1954,9 @@ export class SuppressWeatherEffectAbAttr extends PreWeatherEffectAbAttr {
 
 /**
  * Condition function to applied to abilities related to Sheer Force.
- * Checks if last move used against target was affected by a Sheer Force user, 
- * then disables the user ability if it is one of the following:
- * Color Change, Pickpocket, Wimp Out, Emergency Exit, Berserk, Anger Shell
- * @returns if false disables the ability.
+ * Checks if last move used against target was affected by a Sheer Force user and:
+ * Disables: Color Change, Pickpocket, Wimp Out, Emergency Exit, Berserk, Anger Shell
+ * @returns {AbAttrCondition} If false disables the ability which the condition is applied to.
  */
 function getSheerForceHitDisableAbCondition(): AbAttrCondition {
   return (pokemon: Pokemon) => {
@@ -1980,7 +1971,7 @@ function getSheerForceHitDisableAbCondition(): AbAttrCondition {
     if (!lastAttacker)
       return true;
 
-    //if the last move chance is greater than or equal to cero, and the last attacker's ability is sheer force
+    /**if the last move chance is greater than or equal to cero, and the last attacker's ability is sheer force*/
     const SheerForceAffected = allMoves[lastReceivedAttack.move].chance >= 0 && lastAttacker.hasAbility(Abilities.SHEER_FORCE);
 
     return !SheerForceAffected;
